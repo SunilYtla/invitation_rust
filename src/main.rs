@@ -1,0 +1,65 @@
+use actix_web::{web, App, HttpServer, HttpResponse, Responder, HttpRequest};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use actix_cors::Cors; // Import CORS
+use log::{info, error}; // Import logging macros
+use env_logger; // Import env_logger for logging
+use serde_json::json; // Import for JSON response
+
+mod db;
+use db::Db;
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    // Initialize the logger
+    env_logger::init();
+
+    let db = Arc::new(Mutex::new(Db::new("visitors.db").unwrap()));
+
+    HttpServer::new(move || {
+        let db_clone = db.clone();
+        App::new()
+            .app_data(web::Data::new(db_clone))
+            .wrap(
+                Cors::default()
+                    .allow_any_origin() // Allow any origin (modify as needed for production)
+                    .allowed_methods(vec!["POST"]) // Allow specific methods
+                    .allowed_headers(vec!["Content-Type"]), // Allow specific headers
+            )
+            .route("/visit/", web::post().to(record_visit))
+    })
+    .bind("0.0.0.0:8080")?
+    .run()
+    .await
+}
+
+async fn record_visit(db: web::Data<Arc<Mutex<Db>>>, req: HttpRequest) -> impl Responder {
+    // Retrieve the client's IP address
+    let ip = req.peer_addr()
+        .map(|addr| addr.ip().to_string())
+        .unwrap_or_else(|| "Unknown IP".to_string());
+
+    info!("Received visit request from IP: {}", ip); // Log the incoming request
+    let db = db.lock().await;
+
+    match db.visit(&ip) {
+        Ok(count) => {
+            info!("Successfully recorded visit for IP: {}. Total unique visits: {}", ip, count);
+            // Create a JSON response
+            let response = json!( {
+                "success": true,
+                "count": count
+            });
+            HttpResponse::Ok().json(response) // Return JSON response
+        },
+        Err(err) => {
+            error!("Failed to process visit for IP: {}. Error: {}", ip, err); // Log the error
+            let response = json!( {
+                "success": false,
+                "count": 0 // Count will be zero in case of an error
+            });
+            HttpResponse::InternalServerError().json(response) // Return JSON response with error status
+        },
+    }
+}
+
