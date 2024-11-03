@@ -1,6 +1,6 @@
 FROM rust:slim
 
-WORKDIR /usr/src/app
+WORKDIR /usr/src
 
 COPY . .
 

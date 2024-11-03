@@ -4,8 +4,8 @@ use tokio::sync::Mutex;
 use actix_cors::Cors; // Import CORS
 use log::{info, error}; // Import logging macros
 use env_logger; // Import env_logger for logging
+use std::fs;
 use serde_json::json; // Import for JSON response
-
 mod db;
 use db::Db;
 
@@ -14,7 +14,13 @@ async fn main() -> std::io::Result<()> {
     // Initialize the logger
     env_logger::init();
 
-    let db = Arc::new(Mutex::new(Db::new("visitors.db").unwrap()));
+    // Ensure the "database" directory exists
+    fs::create_dir_all("database").expect("Failed to create database directory");
+
+    // Specify the path to the database file within the "database" folder
+    let db_path = "database/visitors.db";
+
+    let db = Arc::new(Mutex::new(Db::new(db_path).unwrap()));
 
     HttpServer::new(move || {
         let db_clone = db.clone();
