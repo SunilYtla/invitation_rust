@@ -20,6 +20,14 @@ async fn main() -> std::io::Result<()> {
     // Specify the path to the database file within the "database" folder
     let db_path = "database/visitors.db";
 
+    // Get the full path of the database file
+    let full_db_path = std::env::current_dir()
+        .expect("Failed to get current directory")
+        .join(db_path);
+
+    // Log the full path
+    info!("Database file path: {:?}", full_db_path.display());
+
     let db = Arc::new(Mutex::new(Db::new(db_path).unwrap()));
 
     HttpServer::new(move || {
