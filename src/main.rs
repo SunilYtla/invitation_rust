@@ -47,11 +47,24 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
+fn get_client_ip(req: &HttpRequest) -> String {
+    // Check for the X-Forwarded-For header
+    if let Some(ip) = req.headers().get("X-Forwarded-For") {
+        if let Ok(ip_str) = ip.to_str() {
+            // Take the first IP in the list, which is the real client IP
+            return ip_str.split(',').next().unwrap_or("Unknown IP").trim().to_string();
+        }
+    }
+
+    // Fallback to peer address if header is not present
+    req.peer_addr()
+        .map(|addr| addr.ip().to_string())
+        .unwrap_or_else(|| "Unknown IP".to_string())
+}
+
 async fn record_visit(db: web::Data<Arc<Mutex<Db>>>, req: HttpRequest) -> impl Responder {
     // Retrieve the client's IP address
-    let ip = req.peer_addr()
-        .map(|addr| addr.ip().to_string())
-        .unwrap_or_else(|| "Unknown IP".to_string());
+    let ip = get_client_ip(&req);
 
     info!("Received visit request from IP: {}", ip); // Log the incoming request
     let db = db.lock().await;
