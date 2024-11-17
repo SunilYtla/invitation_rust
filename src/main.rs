@@ -70,11 +70,18 @@ async fn main() -> std::io::Result<()> {
     });
 
     HttpServer::new(move || {
+        let db_clone = db.clone();
         App::new()
-            .app_data(data.clone())
-            .route("/visit", web::post().to(visit))
+            .app_data(web::Data::new(db_clone))
+            .wrap(
+                Cors::default()
+                    .allow_any_origin() // Allow any origin (modify as needed for production)
+                    .allowed_methods(vec!["POST"]) // Allow specific methods
+                    .allowed_headers(vec!["Content-Type"]), // Allow specific headers
+            )
+            .route("/visit/", web::post().to(record_visit))
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind("0.0.0.0:8080")?
     .run()
     .await
 }
