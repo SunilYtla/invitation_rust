@@ -2,6 +2,7 @@ use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use rusqlite::{params, Connection, Result};
 use std::sync::{Arc, Mutex};
 use log::{info, error};
+use actix_cors::Cors; // Import CORS
 
 struct AppState {
     conn: Arc<Mutex<Connection>>,
@@ -70,16 +71,19 @@ async fn main() -> std::io::Result<()> {
     });
 
     HttpServer::new(move || {
-        let db_clone = db.clone();
+        let conn = init_db().expect("Failed to initialize database");
+        let data = web::Data::new(AppState {
+            conn: Arc::new(Mutex::new(conn)),
+        });
         App::new()
-            .app_data(web::Data::new(db_clone))
+            .app_data(data.clone())
             .wrap(
                 Cors::default()
                     .allow_any_origin() // Allow any origin (modify as needed for production)
                     .allowed_methods(vec!["POST"]) // Allow specific methods
                     .allowed_headers(vec!["Content-Type"]), // Allow specific headers
             )
-            .route("/visit/", web::post().to(record_visit))
+            .route("/visit/", web::post().to(visit))
     })
     .bind("0.0.0.0:8080")?
     .run()
