@@ -1,6 +1,7 @@
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use rusqlite::{params, Connection, Result};
 use std::sync::{Arc, Mutex};
+use log::{info, error};
 
 struct AppState {
     conn: Arc<Mutex<Connection>>,
@@ -18,6 +19,9 @@ fn init_db() -> Result<Connection> {
     let count: i64 = conn.query_row("SELECT COUNT(*) FROM counter", [], |row| row.get(0))?;
     if count == 0 {
         conn.execute("INSERT INTO counter (value) VALUES (0)", [])?;
+        info!("Counter initialized to 0");
+    } else {
+        info!("Counter already exists with value: {}", count);
     }
 
     Ok(conn)
@@ -31,20 +35,23 @@ fn increment_counter(conn: &mut Connection) -> Result<i64> {
     let current_value: i64 = tx.query_row("SELECT value FROM counter", [], |row| row.get(0))?;
     let new_value = current_value + 1;
     tx.execute("UPDATE counter SET value = ?", params![new_value])?;
-
     tx.commit()?;
+
+    info!("Counter incremented to {}", new_value);
     Ok(new_value)
 }
-
 
 /// API handler to increment and return the counter value.
 async fn visit(data: web::Data<AppState>) -> impl Responder {
     let mut conn = data.conn.lock().unwrap();
 
     match increment_counter(&mut conn) {
-        Ok(value) => HttpResponse::Ok().json(value),
+        Ok(value) => {
+            info!("Counter updated successfully, new value: {}", value);
+            HttpResponse::Ok().json(value)
+        }
         Err(err) => {
-            eprintln!("Error incrementing counter: {}", err);
+            error!("Error incrementing counter: {}", err);
             HttpResponse::InternalServerError().finish()
         }
     }
@@ -52,6 +59,11 @@ async fn visit(data: web::Data<AppState>) -> impl Responder {
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    // Initialize the logger
+    env_logger::init();
+
+    info!("Starting the server...");
+
     let conn = init_db().expect("Failed to initialize database");
     let data = web::Data::new(AppState {
         conn: Arc::new(Mutex::new(conn)),
