@@ -19,7 +19,7 @@ fn init_db() -> Result<Connection> {
     // Initialize counter to 0 if the table is empty.
     let count: i64 = conn.query_row("SELECT COUNT(*) FROM counter", [], |row| row.get(0))?;
     if count == 0 {
-        conn.execute("INSERT INTO counter (value) VALUES (0)", [])?;
+        conn.execute("INSERT INTO counter (value) VALUES (100)", [])?;
         info!("Counter initialized to 0");
     } else {
         info!("Counter already exists with value: {}", count);
